@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A paginated gallery of extracted image URLs.">
+    <title>Cosplay Image Archive</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header">
+        <a class="brand" href="./" aria-label="Cosplay Image Archive home">
+          <span class="brand-mark" aria-hidden="true">✦</span>
+          <span>Cosplay<span class="brand-muted">.image</span></span>
+        </a>
+        <div class="header-note">IMAGE ARCHIVE <span aria-hidden="true">/</span> LIVE INDEX</div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <p class="eyebrow">CURATED URL COLLECTION</p>
+          <h1 id="page-title">A visual index<br><em>in motion.</em></h1>
+          <p class="intro">Browse the latest image references collected from the archive. Every frame links directly to its original source.</p>
+          <div class="stats" aria-live="polite">
+            <div class="stat"><strong id="image-count">—</strong><span>IMAGES</span></div>
+            <div class="stat"><strong id="page-count">—</strong><span>PAGES</span></div>
+            <div class="stat"><strong id="updated-at">—</strong><span>INDEX STATUS</span></div>
+          </div>
+        </section>
+
+        <section class="gallery-section" aria-labelledby="gallery-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">THE COLLECTION</p>
+              <h2 id="gallery-heading">Latest captures</h2>
+            </div>
+            <p class="page-label" id="page-label">Loading gallery…</p>
+          </div>
+          <div id="status" class="status" role="status">Loading image index…</div>
+          <div id="gallery" class="gallery" aria-live="polite"></div>
+          <nav id="pagination" class="pagination" aria-label="Gallery pages"></nav>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <span>Cosplay.image archive</span>
+        <span>Images remain property of their original publishers.</span>
+      </footer>
+    </div>
+  </body>
+</html>
