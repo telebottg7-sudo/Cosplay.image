@@ -52,7 +52,7 @@ image/
     └── chunk1.json
 ```
 
-Running the extractor for a new URL does not overwrite other posts. Running it again for the same page updates only that page's folder.
+Running the extractor for a new URL does not overwrite other posts. Running it again for the same page updates only that page's folder. Duplicate image URLs are filtered both within each page and across the entire archive, so the same image is stored only once.
 
 ## Gallery frontend
 

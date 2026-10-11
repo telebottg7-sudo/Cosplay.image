@@ -184,11 +184,31 @@ def update_catalog(output_dir: Path, url: str, post_dir: Path, paths: list[Path]
     catalog_path.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
 
 
+def read_archived_urls(output_dir: Path, exclude_slug: str) -> set[str]:
+    """Read URLs already stored for other posts in the archive."""
+    archived: set[str] = set()
+    if not output_dir.exists():
+        return archived
+    for post_dir in output_dir.iterdir():
+        if not post_dir.is_dir() or post_dir.name == exclude_slug:
+            continue
+        for chunk in post_dir.glob("chunk*.json"):
+            try:
+                values = json.loads(chunk.read_text(encoding="utf-8"))
+                archived.update(value for value in values if isinstance(value, str))
+            except (json.JSONDecodeError, OSError):
+                continue
+    return archived
+
+
 def extract_images(url: str, output_dir: Path, timeout: int = DEFAULT_TIMEOUT, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[Path]:
     """Fetch a page and preserve its JSON chunks under output_dir/<page-slug>."""
     html = fetch_html(url, timeout)
     urls = extract_image_urls(html, url)
-    post_dir = output_dir / page_slug(url)
+    slug = page_slug(url)
+    archived_urls = read_archived_urls(output_dir, slug)
+    urls = [image_url for image_url in urls if image_url not in archived_urls]
+    post_dir = output_dir / slug
     paths = write_json_chunks(urls, post_dir, chunk_size)
     update_catalog(output_dir, url, post_dir, paths, len(urls), chunk_size)
     return paths

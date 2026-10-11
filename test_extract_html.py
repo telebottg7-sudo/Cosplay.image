@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from extract_html import extract_image_urls, extract_images, page_slug, read_urls_file, validate_url, write_json_chunks
+from extract_html import extract_image_urls, extract_images, page_slug, read_archived_urls, read_urls_file, validate_url, write_json_chunks
 from discover_posts import PostCardParser, save_to_database
 
 
@@ -130,7 +130,15 @@ def test_extract_images_preserves_each_post_in_its_own_folder(tmp_path: Path):
         catalog = json.loads((tmp_path / "image" / "manifest.json").read_text())
         assert [post["slug"] for post in catalog["posts"]] == ["cyrene-swimsuit", "nahida-30"]
         assert (tmp_path / "image" / "cyrene-swimsuit" / "chunk1.json").exists()
-        assert (tmp_path / "image" / "nahida-30" / "chunk1.json").exists()
+        assert not (tmp_path / "image" / "nahida-30" / "chunk1.json").exists()
     finally:
         server.shutdown()
         thread.join()
+
+
+def test_archive_duplicate_filter_keeps_a_url_in_only_one_post(tmp_path: Path):
+    archive = tmp_path / "image" / "old-post"
+    archive.mkdir(parents=True)
+    duplicate = "https://127.0.0.1/wp-content/uploads/2026/08/shared.webp"
+    (archive / "chunk1.json").write_text(json.dumps([duplicate]))
+    assert duplicate in read_archived_urls(tmp_path / "image", "new-post")
