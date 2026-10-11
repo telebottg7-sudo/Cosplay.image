@@ -43,16 +43,16 @@ Each URL is saved in its own folder based on the page slug:
 
 ```text
 image/
-├── manifest.json
+├── manifest.json                         # the one catalog required by the gallery
 ├── cyrene-swimsuit/
-│   ├── manifest.json
 │   └── chunk1.json
 └── nahida-30/
-    ├── manifest.json
     └── chunk1.json
 ```
 
-Running the extractor for a new URL does not overwrite other posts. Running it again for the same page updates only that page's folder. Duplicate image URLs are filtered both within each page and across the entire archive, so the same image is stored only once.
+Running the extractor for a new URL does not overwrite other posts. Running it again for the same page updates only that page's folder. Duplicate image URLs are filtered both within each page and across the entire archive, so the same image is stored only once. The extractor does not generate redundant manifests inside individual post folders.
+
+The single root `image/manifest.json` is required by the static gallery: GitHub Pages cannot list directories dynamically, so the catalog tells the frontend which post folders and chunk files to load. It is the archive database index, not another copy of the image URLs.
 
 ## Gallery frontend
 

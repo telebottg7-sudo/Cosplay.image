@@ -141,19 +141,20 @@ def fetch_html(url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
 
 
 def write_json_chunks(urls: list[str], output_dir: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[Path]:
-    """Write one post's URLs to chunk files plus its local manifest."""
+    """Write one post's URLs to chunk files; the root catalog stores their paths."""
     if chunk_size <= 0:
         raise ValueError("chunk size must be greater than zero")
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_chunk in output_dir.glob("chunk*.json"):
         old_chunk.unlink()
+    old_manifest = output_dir / "manifest.json"
+    if old_manifest.exists():
+        old_manifest.unlink()
     paths: list[Path] = []
     for start in range(0, len(urls), chunk_size):
         path = output_dir / f"chunk{start // chunk_size + 1}.json"
         path.write_text(json.dumps(urls[start : start + chunk_size], indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         paths.append(path)
-    manifest = {"chunks": [path.name for path in paths], "count": len(urls), "chunk_size": chunk_size}
-    (output_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return paths
 
 

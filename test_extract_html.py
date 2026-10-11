@@ -96,8 +96,7 @@ def test_write_json_chunks_limits_each_file_to_chunk_size(tmp_path: Path):
     assert [len(json.loads(path.read_text())) for path in paths] == [200, 200, 1]
     assert json.loads(paths[0].read_text())[0] == urls[0]
     assert json.loads(paths[-1].read_text())[-1] == urls[-1]
-    manifest = json.loads((tmp_path / "image" / "manifest.json").read_text())
-    assert manifest == {"chunks": ["chunk1.json", "chunk2.json", "chunk3.json"], "count": 401, "chunk_size": 200}
+    assert not (tmp_path / "image" / "manifest.json").exists()
 
 
 def test_extract_images_writes_only_article_json_urls(tmp_path: Path):
