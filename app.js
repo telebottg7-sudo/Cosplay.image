@@ -107,8 +107,10 @@ async function loadImages() {
     const manifestResponse = await fetch(manifestPath, { cache: "no-store" });
     if (!manifestResponse.ok) throw new Error("The image manifest is not available yet.");
     const manifest = await manifestResponse.json();
-    const chunks = Array.isArray(manifest.chunks) ? manifest.chunks : [];
-    const responses = await Promise.all(chunks.map((chunk) => fetch(`image/${chunk}`, { cache: "no-store" })));
+    const sources = Array.isArray(manifest.posts)
+      ? manifest.posts.flatMap((post) => (post.chunks || []).map((chunk) => `image/${post.path}/${chunk}`))
+      : (manifest.chunks || []).map((chunk) => `image/${chunk}`);
+    const responses = await Promise.all(sources.map((source) => fetch(source, { cache: "no-store" })));
     if (responses.some((response) => !response.ok)) throw new Error("One or more image chunks could not be loaded.");
     const nestedImages = await Promise.all(responses.map((response) => response.json()));
     images = [...new Set(nestedImages.flat().filter((url) => typeof url === "string"))];

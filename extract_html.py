@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Fetch a web page, extract its primary content image URLs, and write JSON chunks."""
+"""Fetch a web page, extract its primary content image URLs, and preserve JSON archives."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -29,6 +30,14 @@ def validate_url(value: str) -> str:
     return value
 
 
+def page_slug(page_url: str) -> str:
+    """Create a stable, filesystem- and URL-safe folder name from a page URL."""
+    parsed = urlparse(page_url)
+    raw = parsed.path.rstrip("/").split("/")[-1] or parsed.netloc.split(":", 1)[0]
+    slug = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return slug or "home"
+
+
 def is_image_url(value: str, page_url: str) -> bool:
     """Return whether a URL is a page image rather than a theme or site icon asset."""
     parsed = urlparse(value)
@@ -44,7 +53,7 @@ def is_image_url(value: str, page_url: str) -> bool:
 
 
 class ImageURLParser(HTMLParser):
-    """Collect image URLs from the primary article, not the site chrome/sidebar."""
+    """Collect image URLs from the primary article or dedicated gallery."""
 
     ATTRIBUTES = {"src", "data-src", "data-lazy-src", "data-original", "href", "content"}
     VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
@@ -60,7 +69,10 @@ class ImageURLParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        class_names = {value for name, value in attrs if name.lower() == "class" and value for value in value.lower().split()}
+        class_names = set()
+        for name, value in attrs:
+            if name.lower() == "class" and value:
+                class_names.update(value.lower().split())
         if self.scope_tag == "gallery" and not self.scope_active and tag == "div" and "gallery" in class_names:
             self.scope_active = True
             self.scope_depth = 1
@@ -78,9 +90,11 @@ class ImageURLParser(HTMLParser):
             if name.lower() == "srcset" and value:
                 for candidate in value.split(","):
                     self._add_candidate(candidate.strip().split()[0])
+
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
-        self.handle_endtag(tag)
+        if self.scope_tag != "gallery":
+            self.handle_endtag(tag)
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
@@ -121,18 +135,13 @@ def extract_image_urls(html: str, page_url: str) -> list[str]:
 def fetch_html(url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
     """Fetch and return the response body as text."""
     validate_url(url)
-    response = requests.get(
-        url,
-        headers={"User-Agent": DEFAULT_USER_AGENT},
-        timeout=timeout,
-        allow_redirects=True,
-    )
+    response = requests.get(url, headers={"User-Agent": DEFAULT_USER_AGENT}, timeout=timeout, allow_redirects=True)
     response.raise_for_status()
     return response.text
 
 
 def write_json_chunks(urls: list[str], output_dir: Path, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[Path]:
-    """Write URLs to chunk files plus a manifest, and return written paths."""
+    """Write one post's URLs to chunk files plus its local manifest."""
     if chunk_size <= 0:
         raise ValueError("chunk size must be greater than zero")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -148,17 +157,47 @@ def write_json_chunks(urls: list[str], output_dir: Path, chunk_size: int = DEFAU
     return paths
 
 
+def update_catalog(output_dir: Path, url: str, post_dir: Path, paths: list[Path], count: int, chunk_size: int) -> None:
+    """Add or update one post in the cumulative root catalog without deleting other posts."""
+    catalog_path = output_dir / "manifest.json"
+    catalog = {"version": 2, "posts": []}
+    if catalog_path.exists():
+        try:
+            existing = json.loads(catalog_path.read_text(encoding="utf-8"))
+            if isinstance(existing.get("posts"), list):
+                catalog["posts"] = existing["posts"]
+        except (json.JSONDecodeError, OSError):
+            pass
+    slug = post_dir.name
+    entry = {
+        "slug": slug,
+        "url": url,
+        "path": slug,
+        "chunks": [path.name for path in paths],
+        "count": count,
+        "chunk_size": chunk_size,
+    }
+    catalog["posts"] = [post for post in catalog["posts"] if post.get("slug") != slug]
+    catalog["posts"].append(entry)
+    catalog["posts"].sort(key=lambda post: post.get("slug", ""))
+    catalog["count"] = sum(int(post.get("count", 0)) for post in catalog["posts"])
+    catalog_path.write_text(json.dumps(catalog, indent=2) + "\n", encoding="utf-8")
+
+
 def extract_images(url: str, output_dir: Path, timeout: int = DEFAULT_TIMEOUT, chunk_size: int = DEFAULT_CHUNK_SIZE) -> list[Path]:
-    """Fetch *url*, extract its primary-content image URLs, and write JSON chunks."""
+    """Fetch a page and preserve its JSON chunks under output_dir/<page-slug>."""
     html = fetch_html(url, timeout)
     urls = extract_image_urls(html, url)
-    return write_json_chunks(urls, output_dir, chunk_size)
+    post_dir = output_dir / page_slug(url)
+    paths = write_json_chunks(urls, post_dir, chunk_size)
+    update_catalog(output_dir, url, post_dir, paths, len(urls), chunk_size)
+    return paths
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Extract primary-content image URLs into JSON chunks.")
+    parser = argparse.ArgumentParser(description="Extract primary-content image URLs into a permanent post archive.")
     parser.add_argument("url", help="Absolute http:// or https:// URL to scan")
-    parser.add_argument("-o", "--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Output directory (default: image)")
+    parser.add_argument("-o", "--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Archive directory (default: image)")
     parser.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE, help="Maximum image URLs per JSON file (default: 200)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"Request timeout in seconds (default: {DEFAULT_TIMEOUT})")
     return parser
@@ -174,7 +213,7 @@ def main() -> int:
     except (ValueError, requests.RequestException, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(f"Extracted image URLs into {len(paths)} JSON file(s) in {args.output_dir}")
+    print(f"Extracted image URLs into {paths[0].parent if paths else args.output_dir} ({len(paths)} JSON chunk(s))")
     return 0
 
 

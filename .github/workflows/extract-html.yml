@@ -39,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: image-url-chunks
-          path: image/*.json
+          path: image
           if-no-files-found: warn
           retention-days: 7
 
@@ -47,7 +47,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add image/*.json
+          git add image/
           if git diff --cached --quiet; then
             echo "No changes to image URL chunks"
           else

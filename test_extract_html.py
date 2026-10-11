@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from extract_html import extract_image_urls, extract_images, validate_url, write_json_chunks
+from extract_html import extract_image_urls, extract_images, page_slug, validate_url, write_json_chunks
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -39,6 +39,11 @@ def test_validate_url_accepts_http_and_https():
 def test_validate_url_rejects_non_http_urls(url):
     with pytest.raises(ValueError):
         validate_url(url)
+
+
+def test_page_slug_uses_the_url_path():
+    assert page_slug("https://cosplaytele.com/cyrene-swimsuit/") == "cyrene-swimsuit"
+    assert page_slug("https://cosplaytele.com/") == "cosplaytele-com"
 
 
 def test_extract_image_urls_keeps_primary_article_images_only():
@@ -76,6 +81,23 @@ def test_extract_images_writes_only_article_json_urls(tmp_path: Path):
             f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-3_result.webp",
             f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-4_result.webp",
         ]
+    finally:
+        server.shutdown()
+        thread.join()
+
+
+def test_extract_images_preserves_each_post_in_its_own_folder(tmp_path: Path):
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{server.server_port}"
+        extract_images(f"{base}/cyrene-swimsuit/", tmp_path / "image")
+        extract_images(f"{base}/nahida-30/", tmp_path / "image")
+        catalog = json.loads((tmp_path / "image" / "manifest.json").read_text())
+        assert [post["slug"] for post in catalog["posts"]] == ["cyrene-swimsuit", "nahida-30"]
+        assert (tmp_path / "image" / "cyrene-swimsuit" / "chunk1.json").exists()
+        assert (tmp_path / "image" / "nahida-30" / "chunk1.json").exists()
     finally:
         server.shutdown()
         thread.join()

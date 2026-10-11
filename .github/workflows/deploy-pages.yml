@@ -41,7 +41,7 @@ jobs:
           mkdir -p _site/image
           cp index.html app.js styles.css .nojekyll _site/
           if [ -d image ]; then
-            cp image/*.json _site/image/ 2>/dev/null || true
+            cp -R image/. _site/image/
           fi
 
       - name: Upload site artifact
