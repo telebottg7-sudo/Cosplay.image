@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from extract_html import extract_image_urls, extract_images, page_slug, validate_url, write_json_chunks
+from extract_html import extract_image_urls, extract_images, page_slug, read_urls_file, validate_url, write_json_chunks
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -44,6 +44,19 @@ def test_validate_url_rejects_non_http_urls(url):
 def test_page_slug_uses_the_url_path():
     assert page_slug("https://cosplaytele.com/cyrene-swimsuit/") == "cyrene-swimsuit"
     assert page_slug("https://cosplaytele.com/") == "cosplaytele-com"
+
+
+def test_read_urls_file_accepts_up_to_20_urls(tmp_path: Path):
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("\nhttps://example.com/one\nhttps://example.com/two\n")
+    assert read_urls_file(urls_file) == ["https://example.com/one", "https://example.com/two"]
+
+
+def test_read_urls_file_rejects_more_than_20_urls(tmp_path: Path):
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("\n".join(f"https://example.com/{index}" for index in range(21)))
+    with pytest.raises(ValueError, match="at most 20"):
+        read_urls_file(urls_file)
 
 
 def test_extract_image_urls_keeps_primary_article_images_only():

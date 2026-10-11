@@ -194,9 +194,22 @@ def extract_images(url: str, output_dir: Path, timeout: int = DEFAULT_TIMEOUT, c
     return paths
 
 
+def read_urls_file(urls_file: Path, maximum: int = 20) -> list[str]:
+    """Read and validate one URL per line, allowing at most *maximum* URLs."""
+    urls = [line.strip() for line in urls_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not urls:
+        raise ValueError("the URL list is empty")
+    if len(urls) > maximum:
+        raise ValueError(f"at most {maximum} URLs can be processed per run")
+    for url in urls:
+        validate_url(url)
+    return urls
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Extract primary-content image URLs into a permanent post archive.")
-    parser.add_argument("url", help="Absolute http:// or https:// URL to scan")
+    parser.add_argument("url", nargs="?", help="Absolute http:// or https:// URL to scan")
+    parser.add_argument("--urls-file", type=Path, help="Text file containing one URL per line (maximum 20)")
     parser.add_argument("-o", "--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Archive directory (default: image)")
     parser.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE, help="Maximum image URLs per JSON file (default: 200)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"Request timeout in seconds (default: {DEFAULT_TIMEOUT})")
@@ -208,12 +221,25 @@ def main() -> int:
     if args.timeout <= 0 or args.chunk_size <= 0:
         print("error: timeout and chunk size must be greater than zero", file=sys.stderr)
         return 2
+    if bool(args.url) == bool(args.urls_file):
+        print("error: provide either a URL or --urls-file", file=sys.stderr)
+        return 2
     try:
-        paths = extract_images(args.url, args.output_dir, args.timeout, args.chunk_size)
-    except (ValueError, requests.RequestException, OSError) as exc:
+        urls = [args.url] if args.url else read_urls_file(args.urls_file)
+    except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(f"Extracted image URLs into {paths[0].parent if paths else args.output_dir} ({len(paths)} JSON chunk(s))")
+    failures = []
+    for url in urls:
+        try:
+            paths = extract_images(url, args.output_dir, args.timeout, args.chunk_size)
+            print(f"Extracted {url} into {paths[0].parent if paths else args.output_dir} ({len(paths)} JSON chunk(s))")
+        except (ValueError, requests.RequestException, OSError) as exc:
+            print(f"error: {url}: {exc}", file=sys.stderr)
+            failures.append(url)
+    if failures:
+        print(f"{len(failures)} URL(s) failed; successful URLs were preserved", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -4,6 +4,8 @@ A static GitHub Pages gallery for image URLs extracted from web pages. The extra
 
 ## Extract image URLs
 
+### One URL locally
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
@@ -11,14 +13,35 @@ python -m pip install -r requirements.txt
 python extract_html.py https://example.com/post-name/
 ```
 
+### Multiple URLs locally
+
+Put one absolute URL on each line in a text file. Up to 20 URLs are accepted per run:
+
+```text
+https://cosplaytele.com/cyrene-swimsuit/
+https://cosplaytele.com/nahida-30/
+```
+
+Then run:
+
+```bash
+python extract_html.py --urls-file urls.txt
+```
+
 Each URL is saved in its own folder based on the page slug:
 
 ```text
-image/manifest.json                         # cumulative catalog of all posts
-image/cyrene-swimsuit/manifest.json         # this post's metadata
-image/cyrene-swimsuit/chunk1.json
-image/nahida-30/manifest.json               # another post's metadata
-image/nahida-30/chunk1.json
+image/
+├── manifest.json
+├── cyrene-swimsuit/
+│   ├── manifest.json
+│   └── chunk1.json
+├── nahida-30/
+│   ├── manifest.json
+│   └── chunk1.json
+└── another-post/
+    ├── manifest.json
+    └── chunk1.json
 ```
 
 Running the extractor for a new URL **does not overwrite other posts**. Running it again for the same page updates only that page's folder, which prevents duplicate archive entries while allowing refreshed source content. Each post's chunks contain at most 200 image URL strings.
@@ -42,10 +65,11 @@ The gallery displays 24 images per page across all archived posts. Clicking an i
 1. Open the repository's **Actions** tab.
 2. Select **Extract Image URLs**.
 3. Choose **Run workflow**.
-4. Enter an absolute `http://` or `https://` URL.
-5. Optionally change the maximum chunk size.
+4. Paste one absolute URL per line into the **URLs** field.
+5. Enter up to 20 URLs total.
+6. Optionally change the maximum chunk size.
 
-The workflow uploads the complete `image/` archive as an artifact and commits only the new or updated post folder plus the cumulative manifest. Existing post folders remain in the repository.
+The workflow uploads the complete `image/` archive as an artifact and commits only the new or updated post folders plus the cumulative manifest. Existing post folders remain in the repository.
 
 ### Deploy GitHub Pages
 
@@ -69,6 +93,7 @@ pytest -q
 ## Notes
 
 - Only `http://` and `https://` source URLs are accepted.
+- Batch mode accepts a maximum of 20 URLs per run.
 - A dedicated WordPress gallery is preferred; otherwise the primary article is used.
 - Image URLs must come from the same host as the provided page.
 - WordPress theme/plugin assets and common site icons are excluded.
