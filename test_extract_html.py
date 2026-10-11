@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from extract_html import extract_image_urls, extract_images, page_slug, read_urls_file, validate_url, write_json_chunks
+from discover_posts import PostCardParser, save_to_database
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -57,6 +58,25 @@ def test_read_urls_file_rejects_more_than_20_urls(tmp_path: Path):
     urls_file.write_text("\n".join(f"https://example.com/{index}" for index in range(21)))
     with pytest.raises(ValueError, match="at most 20"):
         read_urls_file(urls_file)
+
+
+def test_discover_parser_collects_only_post_card_links():
+    parser = PostCardParser("https://example.com/category/demo/")
+    parser.feed('''<nav><a href="https://example.com/menu/">Menu</a></nav>
+      <div class="col post-item"><a href="/first-post/">First</a></div>
+      <div class="col post-item"><a href="/second-post/">Second</a></div>''')
+    assert parser.urls == ["https://example.com/first-post/", "https://example.com/second-post/"]
+
+
+def test_post_database_merges_sources_without_duplicate_posts(tmp_path: Path):
+    database = tmp_path / "data" / "post_urls.json"
+    save_to_database("https://example.com/category/one/", ["https://example.com/first/"], database)
+    save_to_database("https://example.com/category/two/", ["https://example.com/first/", "https://example.com/second/"], database)
+    data = json.loads(database.read_text())
+    assert data["post_count"] == 2
+    assert len(data["sources"]) == 2
+    first = next(post for post in data["posts"] if post["url"].endswith("/first/"))
+    assert len(first["sources"]) == 2
 
 
 def test_extract_image_urls_keeps_primary_article_images_only():

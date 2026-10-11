@@ -4,8 +4,23 @@ on:
   workflow_dispatch:
     inputs:
       urls:
-        description: "One absolute URL per line; maximum 20 URLs"
-        required: true
+        description: "One absolute post URL per line; maximum 20 URLs (leave empty when using the database)"
+        required: false
+        type: string
+      use_database:
+        description: "Use saved post URLs from data/post_urls.json"
+        required: false
+        default: false
+        type: boolean
+      database_offset:
+        description: "Starting index in the saved post database"
+        required: false
+        default: "0"
+        type: string
+      database_limit:
+        description: "Number of saved URLs to process (maximum 20)"
+        required: false
+        default: "20"
         type: string
       chunk_size:
         description: "Maximum image URLs per JSON file"
@@ -22,40 +37,41 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
           cache: pip
-
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-
-      - name: Prepare URL list
+      - name: Extract saved post URLs from database
+        if: ${{ inputs.use_database }}
+        run: python extract_html.py --database data/post_urls.json --offset "${{ inputs.database_offset }}" --limit "${{ inputs.database_limit }}" --output-dir image --chunk-size "${{ inputs.chunk_size }}"
+      - name: Prepare direct URL list
+        if: ${{ !inputs.use_database }}
         env:
           URLS_INPUT: ${{ inputs.urls }}
-        run: printf '%s\n' "$URLS_INPUT" > urls.txt
-
-      - name: Extract image URLs (maximum 20)
+        run: |
+          test -n "$URLS_INPUT" || (echo "Provide URLs or enable use_database" && exit 1)
+          printf '%s\n' "$URLS_INPUT" > urls.txt
+      - name: Extract direct post URLs
+        if: ${{ !inputs.use_database }}
         run: python extract_html.py --urls-file urls.txt --output-dir image --chunk-size "${{ inputs.chunk_size }}"
-
-      - name: Upload JSON chunks
+      - name: Upload JSON archive
         uses: actions/upload-artifact@v4
         with:
-          name: image-url-chunks
+          name: image-url-archive
           path: image
           if-no-files-found: warn
           retention-days: 7
-
-      - name: Save JSON chunks to repository
+      - name: Save image archive to repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add image/
           if git diff --cached --quiet; then
-            echo "No changes to image URL chunks"
+            echo "No changes to image archive"
           else
-            git commit -m "Update extracted image URL chunks"
+            git commit -m "Update extracted image URL archive"
             git push
           fi

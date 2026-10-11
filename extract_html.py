@@ -206,10 +206,25 @@ def read_urls_file(urls_file: Path, maximum: int = 20) -> list[str]:
     return urls
 
 
+def read_database_urls(database: Path, offset: int = 0, limit: int = 20) -> list[str]:
+    """Read a bounded page of post URLs from the discovery database."""
+    if offset < 0 or limit <= 0 or limit > 20:
+        raise ValueError("database offset must be non-negative and limit must be between 1 and 20")
+    data = json.loads(database.read_text(encoding="utf-8"))
+    urls = [post.get("url") for post in data.get("posts", []) if isinstance(post, dict) and post.get("url")]
+    selected = urls[offset : offset + limit]
+    if not selected:
+        raise ValueError("no saved post URLs remain at this database offset")
+    return selected
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Extract primary-content image URLs into a permanent post archive.")
     parser.add_argument("url", nargs="?", help="Absolute http:// or https:// URL to scan")
     parser.add_argument("--urls-file", type=Path, help="Text file containing one URL per line (maximum 20)")
+    parser.add_argument("--database", type=Path, help="Extract saved post URLs from a discovery database")
+    parser.add_argument("--offset", type=int, default=0, help="Database starting index (default: 0)")
+    parser.add_argument("--limit", type=int, default=20, help="Database URLs to process, maximum 20 (default: 20)")
     parser.add_argument("-o", "--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Archive directory (default: image)")
     parser.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE, help="Maximum image URLs per JSON file (default: 200)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"Request timeout in seconds (default: {DEFAULT_TIMEOUT})")
@@ -221,11 +236,17 @@ def main() -> int:
     if args.timeout <= 0 or args.chunk_size <= 0:
         print("error: timeout and chunk size must be greater than zero", file=sys.stderr)
         return 2
-    if bool(args.url) == bool(args.urls_file):
-        print("error: provide either a URL or --urls-file", file=sys.stderr)
+    selected_modes = sum(bool(value) for value in (args.url, args.urls_file, args.database))
+    if selected_modes != 1:
+        print("error: provide exactly one of a URL, --urls-file, or --database", file=sys.stderr)
         return 2
     try:
-        urls = [args.url] if args.url else read_urls_file(args.urls_file)
+        if args.url:
+            urls = [args.url]
+        elif args.urls_file:
+            urls = read_urls_file(args.urls_file)
+        else:
+            urls = read_database_urls(args.database, args.offset, args.limit)
     except (ValueError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
