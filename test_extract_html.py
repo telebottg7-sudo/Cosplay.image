@@ -11,13 +11,14 @@ from extract_html import extract_image_urls, extract_images, validate_url, write
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         body = b'''<!doctype html>
-        <html><head><meta property="og:image" content="/images/meta.png"></head>
-        <body>
-          <img src="/images/one.webp">
-          <img src="https://cdn.example.com/two.jpg?size=large">
-          <img src="/not-an-image.html">
-          <img srcset="/images/three.png 1x, /images/four.gif 2x">
-          <a href="https://example.com/page.html">Other link</a>
+        <html><body>
+          <article>
+            <img src="/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-1_result.webp">
+            <img srcset="/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-2_result.webp 1x, /wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-3_result.webp 2x">
+            <a href="/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-4_result.webp">Image</a>
+            <img src="/wp-content/themes/flatsome/assets/css/icons/fl-icons.svg">
+          </article>
+          <aside><img src="/wp-content/uploads/2026/08/related-post.webp"></aside>
         </body></html>'''
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -40,9 +41,14 @@ def test_validate_url_rejects_non_http_urls(url):
         validate_url(url)
 
 
-def test_extract_image_urls_filters_other_links_and_resolves_relative_urls():
-    html = '<img src="/images/one.webp"><a href="/page.html">page</a><img src="/images/one.webp">'
-    assert extract_image_urls(html, "https://example.com/post") == ["https://example.com/images/one.webp"]
+def test_extract_image_urls_keeps_primary_article_images_only():
+    html = '''<html><body><article>
+      <img src="/wp-content/uploads/2026/08/one.webp">
+      <img src="/wp-content/themes/flatsome/icon.svg">
+    </article><div class="related"><img src="/wp-content/uploads/2026/08/related.webp"></div></body></html>'''
+    assert extract_image_urls(html, "https://example.com/post") == [
+        "https://example.com/wp-content/uploads/2026/08/one.webp"
+    ]
 
 
 def test_write_json_chunks_limits_each_file_to_chunk_size(tmp_path: Path):
@@ -56,21 +62,19 @@ def test_write_json_chunks_limits_each_file_to_chunk_size(tmp_path: Path):
     assert manifest == {"chunks": ["chunk1.json", "chunk2.json", "chunk3.json"], "count": 401, "chunk_size": 200}
 
 
-def test_extract_images_writes_json_chunks(tmp_path: Path):
+def test_extract_images_writes_only_article_json_urls(tmp_path: Path):
     server = HTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-
     try:
         paths = extract_images(f"http://127.0.0.1:{server.server_port}", tmp_path / "image")
-        assert len(paths) == 1
         urls = json.loads(paths[0].read_text())
+        host = f"http://127.0.0.1:{server.server_port}"
         assert urls == [
-            "http://127.0.0.1:%s/images/four.gif" % server.server_port,
-            "http://127.0.0.1:%s/images/meta.png" % server.server_port,
-            "http://127.0.0.1:%s/images/one.webp" % server.server_port,
-            "http://127.0.0.1:%s/images/three.png" % server.server_port,
-            "https://cdn.example.com/two.jpg?size=large",
+            f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-1_result.webp",
+            f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-2_result.webp",
+            f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-3_result.webp",
+            f"{host}/wp-content/uploads/2026/08/Machi-cosplay-Cyrene-Swimsuit-4_result.webp",
         ]
     finally:
         server.shutdown()

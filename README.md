@@ -71,5 +71,7 @@ pytest -q
 
 - Only `http://` and `https://` source URLs are accepted.
 - Supported image extensions include `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`, `.avif`, `.bmp`, `.ico`, `.tif`, and `.tiff`.
+- The extractor reads the primary `<article>` content when available, so related posts, sidebars, and theme assets are excluded.
+- Image URLs must come from the same host as the provided page; WordPress theme/plugin assets and common site icons are excluded.
 - The extractor reads the server response and does not render JavaScript.
 - Images remain property of their original publishers.
