@@ -400,7 +400,17 @@
       ],
       "count": 90,
       "chunk_size": 200
+    },
+    {
+      "slug": "promeia-2",
+      "url": "https://cosplaytele.com/promeia-2/",
+      "path": "promeia-2",
+      "chunks": [
+        "chunk1.json"
+      ],
+      "count": 77,
+      "chunk_size": 200
     }
   ],
-  "count": 2382
+  "count": 2459
 }
